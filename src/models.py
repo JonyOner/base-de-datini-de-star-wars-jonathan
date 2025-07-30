@@ -25,12 +25,12 @@ class User(db.Model):
 class Favorite(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"))
-    planet_id: Mapped[int] = mapped_column(ForeignKey("planet.id"))
-    character_id: Mapped[int] = mapped_column(ForeignKey("character.id"))
-    vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicle.id"))
     user: Mapped["User"] = relationship(back_populates="favorite")
+    planet_id: Mapped[int] = mapped_column(ForeignKey ("planet.id"), nullable=True)
     planet: Mapped["Planet"] = relationship(back_populates="favorite")
+    character_id: Mapped[int] = mapped_column(ForeignKey("character.id"), nullable=True)
     character: Mapped["Character"] = relationship(back_populates="favorite")
+    vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicle.id"), nullable=True)
     vehicle: Mapped["Vehicle"] = relationship(back_populates="favorite")
 
     def serialize(self):
@@ -65,8 +65,8 @@ class Character(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(120))
     gender: Mapped[str] = mapped_column(String(120))
-    height: Mapped[int] = mapped_column(nullable=False)
-    mass: Mapped[int] = mapped_column(nullable=False)
+    height: Mapped[str] = mapped_column(nullable=False)
+    mass: Mapped[str] = mapped_column(nullable=False)
     favorite: Mapped["Favorite"] = relationship(back_populates="character")
 
     def serialize(self):
