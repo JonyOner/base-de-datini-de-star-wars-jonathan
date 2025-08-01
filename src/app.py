@@ -168,21 +168,29 @@ def get_one_favorite(id):
     return jsonify(response_body), 200
 
 
-@app.route('/users/favorites/<int:id>', methods=['GET'])
-def get_all_users_favorites(id):
+@app.route('/users/favorites/<int:user_id>', methods=['GET'])
+def get_all_user_favorites(user_id):
 
-    query_results = db.session.execute(
-        select(Favorite).where(Favorite.user_id == id)
-    ).scalars().all()
-    
-    results = list(map(lambda item: item.serialize(), query_results))
+    query_user = db.session.execute(select(User).where(
+        User.id == user_id)).scalar_one_or_none()
 
     response_body = {
-        "msg": "ok",
-        "results": results
+        "results": query_user.all_user_favorites()
     }
 
     return jsonify(response_body), 200
+
+
+
+#@app.route('/user', methods=['POST'])
+#def add_new_user():
+    #request_body = request.json
+    #new_user = User(request_body)
+
+    #db.session.add(new_user)
+    #db.session.commit()
+
+    #return jsonify({"msg": "user created"}), 200
 
 
 # this only runs if `$ python src/app.py` is executed

@@ -13,7 +13,9 @@ class User(db.Model):
         String(120), unique=True, nullable=False)
     password: Mapped[str] = mapped_column(nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean(), nullable=False)
-    favorite: Mapped["Favorite"] = relationship(back_populates="user")
+
+    favorites: Mapped[list["Favorite"]] = relationship(
+        "Favorite", back_populates="user", cascade="all, delete-orphan")
 
     def serialize(self):
         return {
@@ -21,26 +23,64 @@ class User(db.Model):
             "email": self.email,
         }
 
+    def all_user_favorites(self):
+        results = list(map(lambda item: item.serialize(), self.favorites))
+        return {
+            "id": self.id,
+            "email": self.email,
+            "favorites": results,
+        }
+
 
 class Favorite(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"))
-    user: Mapped["User"] = relationship(back_populates="favorite")
-    planet_id: Mapped[int] = mapped_column(ForeignKey ("planet.id"), nullable=True)
-    planet: Mapped["Planet"] = relationship(back_populates="favorite")
-    character_id: Mapped[int] = mapped_column(ForeignKey("character.id"), nullable=True)
-    character: Mapped["Character"] = relationship(back_populates="favorite")
-    vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicle.id"), nullable=True)
-    vehicle: Mapped["Vehicle"] = relationship(back_populates="favorite")
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    character_id: Mapped[int | None] = mapped_column(
+        ForeignKey("character.id"), nullable=True)
+    planet_id: Mapped[int | None] = mapped_column(
+        ForeignKey("planet.id"), nullable=True)
+    vehicle_id: Mapped[int | None] = mapped_column(
+        ForeignKey("vehicle.id"), nullable=True)
+
+    user: Mapped["User"] = relationship("User", back_populates="favorites")
+    character: Mapped["Character"] = relationship(
+        "Character", back_populates="favorites")
+    planet: Mapped["Planet"] = relationship(
+        "Planet", back_populates="favorites")
+    vehicle: Mapped["Vehicle"] = relationship(
+        "Vehicle", back_populates="favorites")
 
     def serialize(self):
-        return {
-            "id": self.id,
-            "user_id": self.user_id,
-            "planet_id": self.planet_id,
-            "character_id": self.character_id,
-            "vehicle_id": self.vehicle_id,
+        result = {
+            "id": self.id
         }
+
+        if self.character_id and self.character:
+            result["resource_id"] = self.character_id
+            result["type"] = "character"
+            result["name"] = self.character.name
+            result["gender"] = self.character.gender
+            result["height"] = self.character.height
+            result["mass"] = self.character.mass
+
+        elif self.planet_id and self.planet:
+            result["resource_id"] = self.planet_id
+            result["type"] = "planet"
+            result["name"] = self.planet.name
+            result["terrain"] = self.planet.terrain
+            result["climate"] = self.planet.climate
+            result["diamater"] = self.planet.diameter
+
+        elif self.vehicle_id and self.vehicle:
+            result["resource_id"] = self.vehicle_id
+            result["type"] = "vehicle"
+            result["name"] = self.vehicle.name
+            result["model"] = self.vehicle.model
+            result["passengers"] = self.vehicle.passengers
+            result["length"] = self.vehicle.length
+
+        return result
 
 
 class Planet(db.Model):
@@ -49,15 +89,17 @@ class Planet(db.Model):
     terrain: Mapped[str] = mapped_column(String(120))
     climate: Mapped[str] = mapped_column(String(120))
     diameter: Mapped[int] = mapped_column(nullable=False)
-    favorite: Mapped["Favorite"] = relationship(back_populates="planet")
+
+    favorites: Mapped[list["Favorite"]] = relationship(
+        "Favorite", back_populates="planet")
 
     def serialize(self):
         return {
             "id": self.id,
             "name": self.name,
-            "diameter": self.diameter,
             "terrain": self.terrain,
             "climate": self.climate,
+            "diameter": self.diameter,
         }
 
 
@@ -67,7 +109,9 @@ class Character(db.Model):
     gender: Mapped[str] = mapped_column(String(120))
     height: Mapped[str] = mapped_column(nullable=False)
     mass: Mapped[str] = mapped_column(nullable=False)
-    favorite: Mapped["Favorite"] = relationship(back_populates="character")
+
+    favorites: Mapped[list["Favorite"]] = relationship(
+        "Favorite", back_populates="character")
 
     def serialize(self):
         return {
@@ -85,7 +129,9 @@ class Vehicle(db.Model):
     model: Mapped[str] = mapped_column(String(120))
     passengers: Mapped[int] = mapped_column(nullable=False)
     length: Mapped[int] = mapped_column(nullable=False)
-    favorite: Mapped["Favorite"] = relationship(back_populates="vehicle")
+
+    favorites: Mapped[list["Favorite"]] = relationship(
+        "Favorite", back_populates="vehicle")
 
     def serialize(self):
         return {
