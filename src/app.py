@@ -10,6 +10,7 @@ from utils import APIException, generate_sitemap
 from admin import setup_admin
 from models import db, User, Planet, Vehicle, Character, Favorite
 from sqlalchemy import select
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 # from models import Person
 
 app = Flask(__name__)
@@ -28,6 +29,10 @@ db.init_app(app)
 CORS(app)
 setup_admin(app)
 
+# Setup the Flask-JWT-Extended extension
+app.config["JWT_SECRET_KEY"] = "super-secret"  # Change this!
+jwt = JWTManager(app)
+
 # Handle/serialize errors like a JSON object
 
 
@@ -41,6 +46,61 @@ def handle_invalid_usage(error):
 @app.route('/')
 def sitemap():
     return generate_sitemap(app)
+
+
+@app.route("/signup", methods=["POST"])
+def signup():
+    email = request.json.get("email", None)
+    password = request.json.get("password", None)
+
+    if not email or not password:
+        return jsonify({"msg": "Email and password are required"}), 400
+
+    existing_user = db.session.execute(
+        select(User).where(User.email == email)
+    ).scalar_one_or_none()
+
+    if existing_user:
+        return jsonify({"msg": "Email already registered"}), 409
+
+    new_user = User(email=email, password=password, is_active=True)
+    db.session.add(new_user)
+    db.session.commit()
+
+    return jsonify({"msg": "User created successfully"}), 201
+
+
+@app.route("/login", methods=["POST"])
+def login():
+
+    email = request.json.get("email", None)
+    password = request.json.get("password", None)
+
+    query_user = db.session.execute(select(User).where(
+        User.email == email)).scalar_one_or_none()
+    if query_user is None:
+        return jsonify({"msg": "User not exist"}), 404
+    if email != query_user.email or password != query_user.password:
+        return jsonify({"msg": "Bad username or password"}), 401
+
+    access_token = create_access_token(identity=str(query_user.id))
+    return jsonify(access_token=access_token)
+
+
+@app.route("/private", methods=["GET"])
+@jwt_required()
+def protected():
+
+    current_user = get_jwt_identity()
+
+    query_user = db.session.execute(select(User).where(
+        User.id == int(current_user))).scalar_one_or_none()
+
+    user_favorites = db.session.execute(select(Favorite).where(
+        Favorite.user_id == query_user.id)).scalars().all()
+    results = list(map(lambda item: item.serialize(), user_favorites))
+
+    return jsonify({"results": results}), 200
 
 
 @app.route('/users', methods=['GET'])
@@ -181,16 +241,98 @@ def get_all_user_favorites(user_id):
     return jsonify(response_body), 200
 
 
+@app.route('/favorite/planet/<int:planet_id>', methods=['POST'])
+@jwt_required()
+def add_favorite_planet(planet_id):
+    user_id = get_jwt_identity()
 
-#@app.route('/user', methods=['POST'])
-#def add_new_user():
-    #request_body = request.json
-    #new_user = User(request_body)
+    planet = db.session.get(Planet, planet_id)
+    if planet is None:
+        return jsonify({"error": "Planet not found"}), 404
 
-    #db.session.add(new_user)
-    #db.session.commit()
+    existing = db.session.execute(
+        select(Favorite).where(
+            Favorite.user_id == user_id,
+            Favorite.planet_id == planet_id
+        )
+    ).scalar_one_or_none()
 
-    #return jsonify({"msg": "user created"}), 200
+    if existing:
+        return jsonify({"message": "This planet is already on favorites"}), 409
+
+    new_favorite = Favorite(user_id=user_id, planet_id=planet_id)
+    db.session.add(new_favorite)
+    db.session.commit()
+
+    return jsonify({"message": "Planet added to favorites", "favorite": new_favorite.serialize()}), 201
+
+
+@app.route('/favorite/character/<int:character_id>', methods=['POST'])
+@jwt_required()
+def add_favorite_character(character_id):
+    user_id = get_jwt_identity()
+
+    character = db.session.get(Character, character_id)
+    if character is None:
+        return jsonify({"error": "Character not found"}), 404
+
+    existing = db.session.execute(
+        select(Favorite).where(
+            Favorite.user_id == user_id,
+            Favorite.character_id == character_id
+        )
+    ).scalar_one_or_none()
+
+    if existing:
+        return jsonify({"message": "This character is already on favorites"}), 409
+
+    new_favorite = Favorite(user_id=user_id, character_id=character_id)
+    db.session.add(new_favorite)
+    db.session.commit()
+
+    return jsonify({"message": "Character added to favorites", "favorite": new_favorite.serialize()}), 201
+
+
+@app.route('/favorite/planet/<int:planet_id>', methods=['DELETE'])
+@jwt_required()
+def delete_favorite_planet(planet_id):
+    user_id = get_jwt_identity()
+
+    favorite = db.session.execute(
+        select(Favorite).where(
+            Favorite.user_id == user_id,
+            Favorite.planet_id == planet_id
+        )
+    ).scalar_one_or_none()
+
+    if favorite is None:
+        return jsonify({"error": "Favorite not found"}), 404
+
+    db.session.delete(favorite)
+    db.session.commit()
+
+    return jsonify({"message": "Planet deleted from favorites"}), 200
+
+
+@app.route('/favorite/character/<int:character_id>', methods=['DELETE'])
+@jwt_required()
+def delete_favorite_character(character_id):
+    user_id = get_jwt_identity()
+
+    favorite = db.session.execute(
+        select(Favorite).where(
+            Favorite.user_id == user_id,
+            Favorite.character_id == character_id
+        )
+    ).scalar_one_or_none()
+
+    if favorite is None:
+        return jsonify({"error": "Favorite not found"}), 404
+
+    db.session.delete(favorite)
+    db.session.commit()
+
+    return jsonify({"message": "PCharacter deleted from favorites"}), 200
 
 
 # this only runs if `$ python src/app.py` is executed
